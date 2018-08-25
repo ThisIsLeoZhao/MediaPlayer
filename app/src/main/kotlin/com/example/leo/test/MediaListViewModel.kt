@@ -56,9 +56,9 @@ class MediaListViewModel : ViewModel() {
                 MediaStore.Audio.Media.DEFAULT_SORT_ORDER
         )
 
-        val allMedias = ArrayList<Media>(cursor.count)
+        cursor?.use {
+            val allMedias = ArrayList<Media>(cursor.count)
 
-        cursor.use {
             while (it.moveToNext()) {
                 val media = Media().apply {
                     id = it.getInt(it.getColumnIndex(MediaStore.Audio.Media._ID))
@@ -69,8 +69,7 @@ class MediaListViewModel : ViewModel() {
 
                 allMedias.add(media)
             }
+            medias.value = allMedias
         }
-
-        medias.value = allMedias
     }
 }

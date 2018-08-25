@@ -41,13 +41,13 @@ class MediaListFragment : Fragment() {
             }
 
             mediaListViewModel = ViewModelProviders.of(it).get(MediaListViewModel::class.java)
-            context?.let {
-                listAdapter = MediaAdapter(it, ArrayList())
+            context?.let {context ->
+                listAdapter = MediaAdapter(context, ArrayList())
                 mediaList.adapter = listAdapter
 
-                mediaListViewModel.getAllMedias(it).observe(this, Observer {
+                mediaListViewModel.getAllMedias(context).observe(this, Observer { mediaList ->
                     listAdapter.clear()
-                    listAdapter.addAll(it)
+                    listAdapter.addAll(mediaList)
                     listAdapter.notifyDataSetChanged()
                 })
             }
@@ -62,14 +62,14 @@ class MediaListFragment : Fragment() {
         }
     }
 
-    private inner class MediaAdapter(context: Context, medias: List<Media>) : ArrayAdapter<Media>(context, 0, medias) {
+    private inner class MediaAdapter(context: Context, medias: ArrayList<Media>) : ArrayAdapter<Media>(context, 0, medias) {
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val retView = convertView ?:
             LayoutInflater.from(context).inflate(R.layout.fragment_media_listitem, parent, false)
 
             return retView.apply {
-                getItem(position).let {
+                getItem(position)?.let {
                     val title = findViewById<TextView>(R.id.mediaTitle)
                     val artist = findViewById<TextView>(R.id.mediaArtist)
 
