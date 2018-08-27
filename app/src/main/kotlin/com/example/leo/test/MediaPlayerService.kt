@@ -3,19 +3,24 @@ package com.example.leo.test
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
+import android.arch.lifecycle.LifecycleService
+import android.arch.lifecycle.Observer
 import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
+import android.support.v4.app.NotificationCompat.VISIBILITY_PUBLIC
+import android.support.v4.media.app.NotificationCompat.MediaStyle
 import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
 import android.util.Log
+import android.view.View
 import android.widget.RemoteViews
 import java.io.IOException
 
-class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
+class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
     private val TAG = Utils.getTag(this)
 
     private val binder = MediaPlayerBinder()
@@ -23,6 +28,9 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
     private var playingMediaPath: String? = null
 
     private lateinit var notificationManager: NotificationManagerCompat
+    private lateinit var mediaListViewModel: MediaListViewModel
+    var mediaList: List<Media>? = null
+
     private val remoteViews: RemoteViews? = null
 
     /**
@@ -36,13 +44,13 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
     val progress get() = mediaPlayer.currentPosition
 
     override fun onPrepared(mp: MediaPlayer) {
-        sendMediaReadyBroadcast()
+        sendMediaBroadcast(MEDIA_READY)
         play()
     }
 
-    private fun sendMediaReadyBroadcast() {
+    private fun sendMediaBroadcast(event: String) {
         val localBroadcastManager = LocalBroadcastManager.getInstance(this)
-        localBroadcastManager.sendBroadcast(Intent(MEDIA_READY))
+        localBroadcastManager.sendBroadcast(Intent(event))
     }
 
     inner class MediaPlayerBinder : Binder() {
@@ -55,6 +63,11 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
 
         super.onCreate()
         mediaPlayer = MediaPlayer()
+        mediaListViewModel = MediaListViewModel()
+        mediaListViewModel.getAllMedias(this).observe(this, Observer { medias ->
+            mediaList = medias?.toList()
+            sendMediaBroadcast(MEDIA_LIST_READY)
+        })
         notificationManager = NotificationManagerCompat.from(this)
     }
 
@@ -66,9 +79,13 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
     }
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+
         val path = intent.getStringExtra(MEDIA_PATH_KEY)
         if (path == playingMediaPath) {
-            sendMediaReadyBroadcast()
+            sendMediaBroadcast(MEDIA_READY)
+            play()
+
             return Service.START_NOT_STICKY
         }
 
@@ -78,6 +95,8 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
     }
 
     override fun onBind(intent: Intent): IBinder? {
+        super.onBind(intent)
+
         Log.i(TAG, "onBind")
         return binder
     }
@@ -95,7 +114,19 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
         }
     }
 
-    fun resetTo(path: String) {
+    fun previousMedia() {
+        mediaListViewModel.moveToPreviousMedia()?.let {
+            resetTo(it)
+        }
+    }
+
+    fun nextMedia() {
+        mediaListViewModel.moveToNextMedia()?.let {
+            resetTo(it)
+        }
+    }
+
+    private fun resetTo(path: String) {
         setMedia(path)
         play()
     }
@@ -123,46 +154,35 @@ class MediaPlayerService : Service(), MediaPlayer.OnPreparedListener {
 
     private fun setNotification(): Notification {
         val intent1 = Intent(this, MediaPlayerService::class.java)
-        intent1.putExtra(MEDIA_PATH_KEY, "")
+        intent1.putExtra(MEDIA_PATH_KEY, playingMediaPath)
         val pendingIntent = PendingIntent.getService(this, 0, intent1, PendingIntent.FLAG_UPDATE_CURRENT)
         //        remoteViews.setOnClickPendingIntent(R.id.playButton, pendingIntent);
 
 
         // TODO: update remote view
         val notification = NotificationCompat.Builder(this)
-                .setContentTitle("Much longer tesssssssssssssssss that cannot fit one line...")
+                .setContentTitle("Track title")
                 .setContentText("text")
                 .setSmallIcon(android.R.drawable.sym_def_app_icon)
                 .setContentIntent(pendingIntent)
                 .setTicker("Ticker")
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .setStyle(NotificationCompat.BigTextStyle()
-                        .bigText("Much longer thhhhhhhhhhhhhhhhhhext that cannot fit one line..."))
+                .addAction(android.R.drawable.ic_media_previous, "previous", null)
+                .addAction(android.R.drawable.ic_media_play, "play", null)
+                .addAction(android.R.drawable.ic_media_next, "next", null)
+                .setStyle(MediaStyle().setShowActionsInCompactView(0, 1, 2))
                 .setProgress(100, 55, false)
+                .setVisibility(VISIBILITY_PUBLIC)
                 .build()
 
         //        notification.contentView = remoteViews;
-
-        Handler(mainLooper).postDelayed({
-            val notification1 = NotificationCompat.Builder(this)
-                    .setContentText("Much longer ")
-                    .setSmallIcon(android.R.drawable.sym_def_app_icon)
-                    //                .setContentIntent(pendingIntent)
-                    .setTicker("Ticker")
-                    .setVisibility(Notification.VISIBILITY_PUBLIC)
-                    .setStyle(NotificationCompat.BigTextStyle()
-                            .bigText("Much lone line..."))
-                    .addAction(android.R.drawable.sym_def_app_icon, "HEYYY", pendingIntent)
-                    .setProgress(100, 95, false)
-                    .build()
-            notificationManager.notify(202, notification1)
-        }, 5000)
 
         return notification
     }
 
     companion object {
         const val MEDIA_READY = "mediaReady"
+        const val MEDIA_LIST_READY = "mediaListReady"
         const val MEDIA_PATH_KEY = "path"
     }
 }

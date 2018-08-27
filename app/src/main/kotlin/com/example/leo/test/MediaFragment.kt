@@ -28,17 +28,9 @@ class MediaFragment : Fragment() {
 
     private lateinit var localBroadcastManager: LocalBroadcastManager
 
-    private lateinit var mediaListViewModel: MediaListViewModel
-
     private val mediaPlayerConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             mediaPlayerService = (service as MediaPlayerService.MediaPlayerBinder).service
-
-            localBroadcastManager.registerReceiver(mMediaReadyBroadcastReceiver, IntentFilter(MediaPlayerService.MEDIA_READY))
-
-            val playIntent = Intent(context, MediaPlayerService::class.java)
-            playIntent.putExtra(MEDIA_PATH_KEY, arguments?.getString(MediaPlayerService.MEDIA_PATH_KEY))
-            context?.startService(playIntent)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
@@ -46,24 +38,22 @@ class MediaFragment : Fragment() {
         }
     }
 
-    private val mMediaReadyBroadcastReceiver = object : BroadcastReceiver() {
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val mediaReadyBroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             setupViewStatus()
-
             playButton.isEnabled = true
-
-            handler.post(mUpdateUI)
         }
     }
 
-    private val handler = Handler(Looper.getMainLooper())
-    private val mUpdateUI = object : Runnable {
+    private val updateUI = object : Runnable {
         override fun run() {
             mediaPlayerService?.progress?.let {
                 progressSeekBar.progress = it
                 currentProgress.text = formatMilliSecLength(it)
-                handler.postDelayed(this, 1000)
             }
+            handler.postDelayed(this, 1000)
         }
     }
 
@@ -80,18 +70,36 @@ class MediaFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         view.setBackgroundColor(Color.WHITE)
 
-        context?.let {
+        activity?.let {
             localBroadcastManager = LocalBroadcastManager.getInstance(it)
+            localBroadcastManager.registerReceiver(mediaReadyBroadcastReceiver,
+                    IntentFilter(MediaPlayerService.MEDIA_READY))
         }
 
-        activity?.let {
-            mediaListViewModel = ViewModelProviders.of(it).get(MediaListViewModel::class.java)
-        }
+        val playIntent = Intent(context, MediaPlayerService::class.java)
+        playIntent.putExtra(MEDIA_PATH_KEY, arguments?.getString(MediaPlayerService.MEDIA_PATH_KEY))
+        context?.startService(playIntent)
     }
 
     override fun onStart() {
         super.onStart()
-        context?.applicationContext?.bindService(Intent(context, MediaPlayerService::class.java), mediaPlayerConnection, BIND_AUTO_CREATE)
+
+        handler.post(updateUI)
+
+        context?.bindService(
+                Intent(context, MediaPlayerService::class.java),
+                mediaPlayerConnection, BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Remove scheduled access to the service
+        handler.removeCallbacks(updateUI)
+
+        localBroadcastManager.unregisterReceiver(mediaReadyBroadcastReceiver)
+
+        mediaPlayerService = null
+        context?.unbindService(mediaPlayerConnection)
     }
 
     private fun setupViewStatus() {
@@ -131,17 +139,6 @@ class MediaFragment : Fragment() {
         binding.isPlaying = isPlaying
     }
 
-    override fun onStop() {
-        super.onStop()
-        // Remove scheduled access to the service
-        handler.removeCallbacks(mUpdateUI)
-
-        localBroadcastManager.unregisterReceiver(mMediaReadyBroadcastReceiver)
-
-        mediaPlayerService = null
-        context?.applicationContext?.unbindService(mediaPlayerConnection)
-    }
-
     fun playOrPauseMediaPlay(view: View) {
         isPlaying.run {
             if (get() == true) {
@@ -152,27 +149,21 @@ class MediaFragment : Fragment() {
 
             set(get()?.not())
         }
-
-
     }
 
     fun previousMedia(view: View) {
-        mediaListViewModel.moveToPreviousMedia()?.let {
-            mediaPlayerService?.resetTo(it)
-        }
+        mediaPlayerService?.previousMedia()
     }
 
     fun nextMedia(view: View) {
-        mediaListViewModel.moveToNextMedia()?.let {
-            mediaPlayerService?.resetTo(it)
-        }
+        mediaPlayerService?.nextMedia()
     }
 
     companion object {
         fun newInstance(mediaPath: String) = MediaFragment().apply {
-            val args = Bundle()
-            args.putString(MediaPlayerService.MEDIA_PATH_KEY, mediaPath)
-            arguments = args
+            arguments = Bundle().apply {
+                putString(MediaPlayerService.MEDIA_PATH_KEY, mediaPath)
+            }
         }
     }
 }
