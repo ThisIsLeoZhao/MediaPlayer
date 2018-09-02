@@ -1,5 +1,6 @@
 package com.example.leo.test
 
+import android.R
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -86,16 +87,24 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
                 return Service.START_NOT_STICKY
             } else {
                 setMedia(it)
-                startForeground(100, setNotification())
+                startForeground(ACTION_CODE_OPEN_MEDIA, setNotification())
             }
         }
 
 
         intent.getStringExtra(ACTION_KEY)?.let {
             when (it) {
-                ACTION_PLAY_PAUSE -> pause()
                 ACTION_NEXT -> nextMedia()
                 ACTION_PREVIOUS -> previousMedia()
+                ACTION_PLAY_PAUSE -> {
+                    if (mediaPlayer.isPlaying) {
+                        startForeground(ACTION_CODE_OPEN_MEDIA, setNotification(android.R.drawable.ic_media_play))
+                        pause()
+                    } else {
+                        startForeground(ACTION_CODE_OPEN_MEDIA, setNotification(android.R.drawable.ic_media_pause))
+                        play()
+                    }
+                }
             }
         }
 
@@ -160,22 +169,22 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         setOnPreparedListener(this@MediaPlayerService)
     }
 
-    private fun setNotification(): Notification {
+    private fun setNotification(playPauseDrawable: Int = R.drawable.ic_media_pause): Notification {
         fun getIntent() = Intent(this, MediaPlayerService::class.java)
 
         val pendingIntent = PendingIntent.getService(this, 0,
                 getIntent().apply { putExtra(MEDIA_PATH_KEY, mediaListViewModel.currentMedia()) },
                 PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val pausePendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+        val pausePendingIntent = PendingIntent.getService(this, ACTION_CODE_PLAY_PAUSE,
                 getIntent().apply { putExtra(ACTION_KEY, ACTION_PLAY_PAUSE) },
                 PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val previousPendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+        val previousPendingIntent = PendingIntent.getService(this, ACTION_CODE_PREVIOUS,
                 getIntent().apply { putExtra(ACTION_KEY, ACTION_PREVIOUS) },
                 PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val nextPendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+        val nextPendingIntent = PendingIntent.getService(this, ACTION_CODE_NEXT,
                 getIntent().apply { putExtra(ACTION_KEY, ACTION_NEXT) },
                 PendingIntent.FLAG_UPDATE_CURRENT)
 
@@ -189,7 +198,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
                 .setTicker("Ticker")
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .addAction(android.R.drawable.ic_media_previous, "previous", previousPendingIntent)
-                .addAction(android.R.drawable.ic_media_pause, "play", pausePendingIntent)
+                .addAction(playPauseDrawable, "play", pausePendingIntent)
                 .addAction(android.R.drawable.ic_media_next, "next", nextPendingIntent)
                 .setStyle(MediaStyle().setShowActionsInCompactView(0, 1, 2))
                 .setVisibility(VISIBILITY_PUBLIC)
@@ -206,5 +215,9 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         const val ACTION_PLAY_PAUSE = "playPause"
         const val ACTION_PREVIOUS = "previous"
         const val ACTION_NEXT = "next"
+        const val ACTION_CODE_OPEN_MEDIA = 100
+        const val ACTION_CODE_PLAY_PAUSE = 101
+        const val ACTION_CODE_PREVIOUS = 102
+        const val ACTION_CODE_NEXT = 103
     }
 }
