@@ -8,15 +8,13 @@ import android.arch.lifecycle.Observer
 import android.content.Intent
 import android.media.MediaPlayer
 import android.os.Binder
-import android.os.Handler
 import android.os.IBinder
 import android.support.v4.app.NotificationCompat
 import android.support.v4.app.NotificationCompat.VISIBILITY_PUBLIC
-import android.support.v4.media.app.NotificationCompat.MediaStyle
 import android.support.v4.app.NotificationManagerCompat
 import android.support.v4.content.LocalBroadcastManager
+import android.support.v4.media.app.NotificationCompat.MediaStyle
 import android.util.Log
-import android.view.View
 import android.widget.RemoteViews
 import java.io.IOException
 
@@ -25,7 +23,6 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
 
     private val binder = MediaPlayerBinder()
     private lateinit var mediaPlayer: MediaPlayer
-    private var playingMediaPath: String? = null
 
     private lateinit var notificationManager: NotificationManagerCompat
     private lateinit var mediaListViewModel: MediaListViewModel
@@ -81,16 +78,27 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        val path = intent.getStringExtra(MEDIA_PATH_KEY)
-        if (path == playingMediaPath) {
-            sendMediaBroadcast(MEDIA_READY)
-            play()
+        intent.getStringExtra(MEDIA_PATH_KEY)?.let {
+            if (it == mediaListViewModel.currentMedia()) {
+                sendMediaBroadcast(MEDIA_READY)
+                play()
 
-            return Service.START_NOT_STICKY
+                return Service.START_NOT_STICKY
+            } else {
+                setMedia(it)
+                startForeground(100, setNotification())
+            }
         }
 
-        setMedia(path)
-        startForeground(100, setNotification())
+
+        intent.getStringExtra(ACTION_KEY)?.let {
+            when (it) {
+                ACTION_PLAY_PAUSE -> pause()
+                ACTION_NEXT -> nextMedia()
+                ACTION_PREVIOUS -> previousMedia()
+            }
+        }
+
         return Service.START_NOT_STICKY
     }
 
@@ -115,13 +123,13 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
     }
 
     fun previousMedia() {
-        mediaListViewModel.moveToPreviousMedia()?.let {
+        mediaListViewModel.previousMedia()?.let {
             resetTo(it)
         }
     }
 
     fun nextMedia() {
-        mediaListViewModel.moveToNextMedia()?.let {
+        mediaListViewModel.nextMedia()?.let {
             resetTo(it)
         }
     }
@@ -142,21 +150,34 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         reset()
         try {
             setDataSource(path)
+            mediaListViewModel.select(path)
         } catch (e: IOException) {
             // TODO: Fail to set data source
             e.printStackTrace()
         }
 
-        playingMediaPath = path
         prepareAsync()
         setOnPreparedListener(this@MediaPlayerService)
     }
 
     private fun setNotification(): Notification {
-        val intent1 = Intent(this, MediaPlayerService::class.java)
-        intent1.putExtra(MEDIA_PATH_KEY, playingMediaPath)
-        val pendingIntent = PendingIntent.getService(this, 0, intent1, PendingIntent.FLAG_UPDATE_CURRENT)
-        //        remoteViews.setOnClickPendingIntent(R.id.playButton, pendingIntent);
+        fun getIntent() = Intent(this, MediaPlayerService::class.java)
+
+        val pendingIntent = PendingIntent.getService(this, 0,
+                getIntent().apply { putExtra(MEDIA_PATH_KEY, mediaListViewModel.currentMedia()) },
+                PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val pausePendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+                getIntent().apply { putExtra(ACTION_KEY, ACTION_PLAY_PAUSE) },
+                PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val previousPendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+                getIntent().apply { putExtra(ACTION_KEY, ACTION_PREVIOUS) },
+                PendingIntent.FLAG_UPDATE_CURRENT)
+
+        val nextPendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(),
+                getIntent().apply { putExtra(ACTION_KEY, ACTION_NEXT) },
+                PendingIntent.FLAG_UPDATE_CURRENT)
 
 
         // TODO: update remote view
@@ -167,15 +188,12 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
                 .setContentIntent(pendingIntent)
                 .setTicker("Ticker")
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
-                .addAction(android.R.drawable.ic_media_previous, "previous", null)
-                .addAction(android.R.drawable.ic_media_play, "play", null)
-                .addAction(android.R.drawable.ic_media_next, "next", null)
+                .addAction(android.R.drawable.ic_media_previous, "previous", previousPendingIntent)
+                .addAction(android.R.drawable.ic_media_pause, "play", pausePendingIntent)
+                .addAction(android.R.drawable.ic_media_next, "next", nextPendingIntent)
                 .setStyle(MediaStyle().setShowActionsInCompactView(0, 1, 2))
-                .setProgress(100, 55, false)
                 .setVisibility(VISIBILITY_PUBLIC)
                 .build()
-
-        //        notification.contentView = remoteViews;
 
         return notification
     }
@@ -184,5 +202,9 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         const val MEDIA_READY = "mediaReady"
         const val MEDIA_LIST_READY = "mediaListReady"
         const val MEDIA_PATH_KEY = "path"
+        const val ACTION_KEY = "notificationAction"
+        const val ACTION_PLAY_PAUSE = "playPause"
+        const val ACTION_PREVIOUS = "previous"
+        const val ACTION_NEXT = "next"
     }
 }

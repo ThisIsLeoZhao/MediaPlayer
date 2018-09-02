@@ -11,43 +11,35 @@ class MediaListViewModel : ViewModel() {
     private val medias = MutableLiveData<List<Media>>()
     private var currentSelectedMediaIndex = 0
 
-    private val currentMedia: String?
-        get() = medias.value?.get(currentSelectedMediaIndex)?.url
-
     fun getAllMedias(context: Context): LiveData<List<Media>> {
         fetchMedias(context)
         return medias
     }
 
-    fun select(mediaUrl: String) {
-        medias.value?.let {
-            for (i in 0 until it.size) {
-                if (mediaUrl == it[i].url) {
-                    currentSelectedMediaIndex = i
-                    return
-                }
+    fun select(mediaUrl: String) = medias.value?.let {
+        for (i in 0 until it.size) {
+            if (mediaUrl == it[i].url) {
+                currentSelectedMediaIndex = i
+                break
             }
         }
     }
 
-    fun moveToNextMedia(): String? {
-        medias.value?.let {
-            currentSelectedMediaIndex = (currentSelectedMediaIndex + 1) % it.size
-        }
-
-        return currentMedia
+    fun nextMedia() = medias.value?.let {
+        val nextIndex = (currentSelectedMediaIndex + 1) % it.size
+        it[nextIndex].url
     }
 
-    fun moveToPreviousMedia(): String? {
-        medias.value?.let {
-            currentSelectedMediaIndex = if (currentSelectedMediaIndex == 0)
-                it.size - 1
-            else
-                currentSelectedMediaIndex - 1
-        }
+    fun previousMedia() = medias.value?.let {
+        val previousIndex = if (currentSelectedMediaIndex == 0)
+            it.size - 1
+        else
+            currentSelectedMediaIndex - 1
 
-        return currentMedia
+        it[previousIndex].url
     }
+
+    fun currentMedia() = medias.value?.get(currentSelectedMediaIndex)?.url
 
     private fun fetchMedias(context: Context) {
         val cursor = context.contentResolver.query(
