@@ -27,7 +27,7 @@ class MediaListFragment : Fragment() {
 
     private lateinit var localBroadcastManager: LocalBroadcastManager
 
-    private var mediaPlayerService: MediaPlayerService? = null
+    private var mediaPlayerService: IMediaPlayerService? = null
 
     private val mediaListReadyBroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {

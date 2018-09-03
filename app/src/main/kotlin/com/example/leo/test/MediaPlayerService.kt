@@ -1,6 +1,5 @@
 package com.example.leo.test
 
-import android.R
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -19,7 +18,33 @@ import android.util.Log
 import android.widget.RemoteViews
 import java.io.IOException
 
-class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
+interface IMediaPlayerService {
+    /**
+     * 获取播放位置
+     */
+    val progress: Int
+    /**
+     * 获取歌曲长度
+     */
+    val mediaLength: Int
+
+    val mediaList: List<Media>
+
+    fun play()
+
+    fun pause()
+
+    fun previousMedia()
+
+    fun nextMedia()
+
+    /**
+     * 播放指定位置
+     */
+    fun seekToPosition(msec: Int)
+}
+
+class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, IMediaPlayerService {
     private val TAG = Utils.getTag(this)
 
     private val binder = MediaPlayerBinder()
@@ -27,19 +52,12 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
 
     private lateinit var notificationManager: NotificationManagerCompat
     private lateinit var mediaListViewModel: MediaListViewModel
-    var mediaList: List<Media>? = null
 
     private val remoteViews: RemoteViews? = null
 
-    /**
-     * 获取歌曲长度
-     */
-    val mediaLength get() = mediaPlayer.duration
-
-    /**
-     * 获取播放位置
-     */
-    val progress get() = mediaPlayer.currentPosition
+    override val mediaLength get() = mediaPlayer.duration
+    override val progress get() = mediaPlayer.currentPosition
+    override val mediaList = mutableListOf<Media>()
 
     override fun onPrepared(mp: MediaPlayer) {
         sendMediaBroadcast(MEDIA_READY)
@@ -52,7 +70,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
     }
 
     inner class MediaPlayerBinder : Binder() {
-        val service: MediaPlayerService
+        val service: IMediaPlayerService
             get() = this@MediaPlayerService
     }
 
@@ -63,7 +81,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         mediaPlayer = MediaPlayer()
         mediaListViewModel = MediaListViewModel()
         mediaListViewModel.getAllMedias(this).observe(this, Observer { medias ->
-            mediaList = medias?.toList()
+            medias?.let { mediaList.addAll(it) }
             sendMediaBroadcast(MEDIA_LIST_READY)
         })
         notificationManager = NotificationManagerCompat.from(this)
@@ -118,26 +136,25 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         return binder
     }
 
-    fun play() {
+    override fun play() {
         if (!mediaPlayer.isPlaying) {
             mediaPlayer.start()
         }
-
     }
 
-    fun pause() {
+    override fun pause() {
         if (mediaPlayer.isPlaying) {
             mediaPlayer.pause()
         }
     }
 
-    fun previousMedia() {
+    override fun previousMedia() {
         mediaListViewModel.previousMedia()?.let {
             resetTo(it)
         }
     }
 
-    fun nextMedia() {
+    override fun nextMedia() {
         mediaListViewModel.nextMedia()?.let {
             resetTo(it)
         }
@@ -148,10 +165,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         play()
     }
 
-    /**
-     * 播放指定位置
-     */
-    fun seekToPosition(msec: Int) {
+    override fun seekToPosition(msec: Int) {
         mediaPlayer.seekTo(msec)
     }
 
@@ -169,7 +183,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
         setOnPreparedListener(this@MediaPlayerService)
     }
 
-    private fun setNotification(playPauseDrawable: Int = R.drawable.ic_media_pause): Notification {
+    private fun setNotification(playPauseDrawable: Int = android.R.drawable.ic_media_pause): Notification {
         fun getIntent() = Intent(this, MediaPlayerService::class.java)
 
         val pendingIntent = PendingIntent.getService(this, 0,
@@ -190,7 +204,8 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
 
 
         // TODO: update remote view
-        val notification = NotificationCompat.Builder(this)
+
+        return NotificationCompat.Builder(this)
                 .setContentTitle("Track title")
                 .setContentText("text")
                 .setSmallIcon(android.R.drawable.sym_def_app_icon)
@@ -203,8 +218,6 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener {
                 .setStyle(MediaStyle().setShowActionsInCompactView(0, 1, 2))
                 .setVisibility(VISIBILITY_PUBLIC)
                 .build()
-
-        return notification
     }
 
     companion object {

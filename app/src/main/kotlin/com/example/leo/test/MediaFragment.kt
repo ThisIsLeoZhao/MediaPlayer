@@ -1,6 +1,5 @@
 package com.example.leo.test
 
-import android.arch.lifecycle.ViewModelProviders
 import android.content.*
 import android.content.Context.BIND_AUTO_CREATE
 import android.databinding.DataBindingUtil
@@ -23,7 +22,7 @@ import kotlinx.android.synthetic.main.fragment_media.*
 
 class MediaFragment : Fragment() {
 
-    private var mediaPlayerService: MediaPlayerService? = null
+    private var mediaPlayerService: IMediaPlayerService? = null
     private val isPlaying = ObservableField(true)
 
     private lateinit var localBroadcastManager: LocalBroadcastManager
