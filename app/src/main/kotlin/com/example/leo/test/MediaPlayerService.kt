@@ -29,6 +29,7 @@ interface IMediaPlayerService {
     val mediaLength: Int
 
     val mediaList: List<Media>
+    val currentMedia: Media?
 
     fun play()
 
@@ -58,6 +59,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
     override val mediaLength get() = mediaPlayer.duration
     override val progress get() = mediaPlayer.currentPosition
     override val mediaList = mutableListOf<Media>()
+    override val currentMedia get() = mediaListViewModel.currentMedia()
 
     override fun onPrepared(mp: MediaPlayer) {
         sendMediaBroadcast(MEDIA_READY)
@@ -98,7 +100,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
         super.onStartCommand(intent, flags, startId)
 
         intent.getStringExtra(MEDIA_PATH_KEY)?.let {
-            if (it == mediaListViewModel.currentMedia()) {
+            if (it == mediaListViewModel.currentMedia()?.url) {
                 sendMediaBroadcast(MEDIA_READY)
                 play()
 
@@ -108,7 +110,6 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
                 startForeground(ACTION_CODE_OPEN_MEDIA, setNotification())
             }
         }
-
 
         intent.getStringExtra(ACTION_KEY)?.let {
             when (it) {
@@ -151,12 +152,14 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
     override fun previousMedia() {
         mediaListViewModel.previousMedia()?.let {
             resetTo(it)
+            sendMediaBroadcast(PREVIOUS_MEDIA)
         }
     }
 
     override fun nextMedia() {
         mediaListViewModel.nextMedia()?.let {
             resetTo(it)
+            sendMediaBroadcast(NEXT_MEDIA)
         }
     }
 
@@ -172,8 +175,8 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
     private fun setMedia(path: String) = mediaPlayer.run {
         reset()
         try {
-            setDataSource(path)
             mediaListViewModel.select(path)
+            setDataSource(path)
         } catch (e: IOException) {
             // TODO: Fail to set data source
             e.printStackTrace()
@@ -187,7 +190,7 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
         fun getIntent() = Intent(this, MediaPlayerService::class.java)
 
         val pendingIntent = PendingIntent.getService(this, 0,
-                getIntent().apply { putExtra(MEDIA_PATH_KEY, mediaListViewModel.currentMedia()) },
+                getIntent().apply { putExtra(MEDIA_PATH_KEY, mediaListViewModel.currentMedia()?.url) },
                 PendingIntent.FLAG_UPDATE_CURRENT)
 
         val pausePendingIntent = PendingIntent.getService(this, ACTION_CODE_PLAY_PAUSE,
@@ -223,6 +226,8 @@ class MediaPlayerService : LifecycleService(), MediaPlayer.OnPreparedListener, I
     companion object {
         const val MEDIA_READY = "mediaReady"
         const val MEDIA_LIST_READY = "mediaListReady"
+        const val PREVIOUS_MEDIA = "previousMedia"
+        const val NEXT_MEDIA = "nextMedia"
         const val MEDIA_PATH_KEY = "path"
         const val ACTION_KEY = "notificationAction"
         const val ACTION_PLAY_PAUSE = "playPause"

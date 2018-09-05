@@ -4,6 +4,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android">
     <data>
         <import type="android.databinding.ObservableField"/>
+        <variable name="title" type="android.databinding.ObservableField&lt;String&gt;" />
+        <variable name="author" type="android.databinding.ObservableField&lt;String&gt;" />
         <variable name="isPlaying" type="android.databinding.ObservableField&lt;Boolean&gt;" />
 
         <variable name="mainView" type="com.example.leo.test.MediaFragment" />
@@ -13,11 +15,37 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <Button
-            android:id="@+id/lastMediaButton"
+        <TextView
+            android:id="@+id/titleView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Last Song"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="32dp"
+            android:layout_marginEnd="8dp"
+            android:text="@{title}"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/authorView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="8dp"
+            android:text="@{author}"
+            app:layout_constraintBottom_toTopOf="@+id/progressSeekBar"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/titleView" />
+
+        <Button
+            android:id="@+id/previousMediaButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Previous Song"
             android:onClick="@{mainView::previousMedia}"
             app:layout_constraintEnd_toStartOf="@+id/playButton"
             app:layout_constraintHorizontal_bias="0.5"
@@ -34,7 +62,7 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/nextMediaButton"
             app:layout_constraintHorizontal_chainStyle="packed"
-            app:layout_constraintStart_toEndOf="@+id/lastMediaButton"
+            app:layout_constraintStart_toEndOf="@+id/previousMediaButton"
             app:layout_constraintTop_toTopOf="parent" />
 
         <Button

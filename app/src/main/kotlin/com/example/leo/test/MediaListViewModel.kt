@@ -39,7 +39,7 @@ class MediaListViewModel : ViewModel() {
         it[previousIndex].url
     }
 
-    fun currentMedia() = medias.value?.get(currentSelectedMediaIndex)?.url
+    fun currentMedia() = medias.value?.get(currentSelectedMediaIndex)
 
     private fun fetchMedias(context: Context) {
         val cursor = context.contentResolver.query(

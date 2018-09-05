@@ -24,6 +24,8 @@ class MediaFragment : Fragment() {
 
     private var mediaPlayerService: IMediaPlayerService? = null
     private val isPlaying = ObservableField(true)
+    private val title = ObservableField("Title")
+    private val author = ObservableField("Author")
 
     private lateinit var localBroadcastManager: LocalBroadcastManager
 
@@ -43,6 +45,12 @@ class MediaFragment : Fragment() {
         override fun onReceive(context: Context, intent: Intent) {
             setupViewStatus()
             playButton.isEnabled = true
+        }
+    }
+
+    private val mediaChangedBroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            setupViewStatus()
         }
     }
 
@@ -70,9 +78,11 @@ class MediaFragment : Fragment() {
         view.setBackgroundColor(Color.WHITE)
 
         activity?.let {
-            localBroadcastManager = LocalBroadcastManager.getInstance(it)
-            localBroadcastManager.registerReceiver(mediaReadyBroadcastReceiver,
-                    IntentFilter(MediaPlayerService.MEDIA_READY))
+            localBroadcastManager = LocalBroadcastManager.getInstance(it).apply {
+                registerReceiver(mediaReadyBroadcastReceiver, IntentFilter(MediaPlayerService.MEDIA_READY))
+                registerReceiver(mediaChangedBroadcastReceiver, IntentFilter(MediaPlayerService.NEXT_MEDIA))
+                registerReceiver(mediaChangedBroadcastReceiver, IntentFilter(MediaPlayerService.PREVIOUS_MEDIA))
+            }
         }
 
         val playIntent = Intent(context, MediaPlayerService::class.java)
@@ -90,12 +100,20 @@ class MediaFragment : Fragment() {
                 mediaPlayerConnection, BIND_AUTO_CREATE)
     }
 
+    override fun onResume() {
+        super.onResume()
+        setupViewStatus()
+    }
+
     override fun onStop() {
         super.onStop()
         // Remove scheduled access to the service
         handler.removeCallbacks(updateUI)
 
-        localBroadcastManager.unregisterReceiver(mediaReadyBroadcastReceiver)
+        localBroadcastManager.apply {
+            unregisterReceiver(mediaReadyBroadcastReceiver)
+            unregisterReceiver(mediaChangedBroadcastReceiver)
+        }
 
         mediaPlayerService = null
         context?.unbindService(mediaPlayerConnection)
@@ -103,6 +121,11 @@ class MediaFragment : Fragment() {
 
     private fun setupViewStatus() {
         mediaPlayerService?.run {
+            currentMedia?.let {
+                title.set(it.title)
+                author.set(it.artist)
+            }
+
             progressSeekBar.max = mediaLength
             progressSeekBar.progress = progress
             totalLength.text = formatMilliSecLength(mediaLength)
@@ -136,6 +159,8 @@ class MediaFragment : Fragment() {
     private fun setupDataBinding(binding: FragmentMediaBinding) {
         binding.mainView = this
         binding.isPlaying = isPlaying
+        binding.title = title
+        binding.author = author
     }
 
     fun playOrPauseMediaPlay(view: View) {

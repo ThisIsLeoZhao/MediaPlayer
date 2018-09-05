@@ -9,7 +9,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal">
         <Button
-            android:id="@+id/lastMediaButton"
+            android:id="@+id/previousMediaButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Last Song" />
